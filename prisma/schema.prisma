@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CONNECTION_STRING")
+}
+
+model companies {
+  id              Int       @id @default(autoincrement())
+  slug            String?
+  alternate_names String[]
+  name            String
+  type            String?
+  category        String?
+  created_at      DateTime? @default(now())
+  updated_at      DateTime? @default(now())
+  deals           deals[]
+
+  @@index([name])
+}
+
+model conferences {
+  abbr          String          @id
+  name          String          @unique(sort: Desc)
+  on3_id        Int?            @unique
+  organizations organizations[]
+}
+
+model contacts {
+  id              String    @id
+  player_id       Int
+  type            String
+  created_at      DateTime? @default(now())
+  formatted_value String?
+  value           String
+  players         players   @relation(fields: [player_id], references: [id], onDelete: Cascade)
+
+  @@index([player_id])
+}
+
+model countries {
+  abbr   String   @id
+  name   String   @unique
+  on3_id Int?     @unique
+  states states[]
+}
+
+model deals {
+  id           Int        @id @default(autoincrement())
+  on3_id       Int        @unique
+  player_id    Int
+  company_id   Int?
+  company_name String?
+  created_at   DateTime?  @default(now())
+  updated_at   DateTime?  @default(now())
+  amount       Int?
+  source       String?
+  companies    companies? @relation(fields: [company_id], references: [id])
+  players      players    @relation(fields: [player_id], references: [id], onDelete: Cascade)
+
+  @@index([company_id])
+  @@index([company_name(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([player_id])
+}
+
+model handles {
+  player_id       Int
+  platform        String
+  created_at      DateTime? @default(now())
+  updated_at      DateTime? @default(now())
+  formatted_value String?
+  value           String
+  success         Boolean   @default(true)
+  passed          Boolean?
+  followers       Int?
+  posts_count     Int?
+  is_private      Boolean?
+  user_id         String?
+  players         players   @relation(fields: [player_id], references: [id], onDelete: Cascade)
+
+  @@id([player_id, platform])
+}
+
+model migrations {
+  id         Int       @id @default(autoincrement())
+  name       String    @db.VarChar(255)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model organizations {
+  on3_id          Int           @id
+  name            String
+  mascot          String        @default("")
+  type            String
+  on3_asset       String?
+  division        String?
+  full_name       String
+  abbr            String?
+  on3_slug        String?
+  conference_abbr String?
+  primary_color   String?
+  secondary_color String?
+  conferences     conferences?  @relation(fields: [conference_abbr], references: [abbr])
+  sport_teams     sport_teams[]
+
+  @@index([conference_abbr])
+}
+
+model players {
+  id                     Int              @id @default(autoincrement())
+  on3_slug               String?          @unique
+  espn_id                String?          @unique
+  slug_247               String?          @unique
+  rivals_slug            String?          @unique
+  gender                 String?
+  goes_by                String?
+  nickname               String?
+  full_name              String?
+  first_name             String
+  last_name              String
+  sport_slug             String?
+  position_name          String?
+  hometown_id            Int?
+  jersey                 Int?
+  height                 Float?           @db.Real
+  weight                 Float?           @db.Real
+  class_year             Int?
+  class_rank             String?
+  created_at             DateTime?        @default(now())
+  updated_at             DateTime?        @default(now())
+  recruit_rating         Float?           @db.Real
+  recruit_stars          Int?
+  search_vol             Int?
+  stats                  Json?            @default("{}")
+  usage                  Float?           @db.Real
+  thumbnail              String?
+  nil_value              Int?
+  organization_id        Int?
+  dob                    DateTime?
+  services               Json?            @default("{}")
+  on_opendorse           Boolean?         @default(false)
+  interests              String[]
+  accolades              String[]
+  ethnicity              String[]
+  opendorse_profile_code String?
+  checkpoints            Json?            @default("{}")
+  normalized_full_names  String[]         @default(dbgenerated("ARRAY[regexp_replace(lower(full_name), '[^a-z0-9]+'::text, ''::text, 'g'::text), regexp_replace(lower((first_name || last_name)), '[^a-z0-9]+'::text, ''::text, 'g'::text), regexp_replace(lower((first_name || split_part(last_name, ' '::text, 1))), '[^a-z0-9]+'::text, ''::text, 'g'::text), regexp_replace(lower((first_name || split_part(last_name, ' '::text, 2))), '[^a-z0-9]+'::text, ''::text, 'g'::text), regexp_replace(lower((first_name || split_part(last_name, '-'::text, 1))), '[^a-z0-9]+'::text, ''::text, 'g'::text), regexp_replace(lower((first_name || split_part(last_name, '-'::text, 2))), '[^a-z0-9]+'::text, ''::text, 'g'::text)]"))
+  contacts               contacts[]
+  deals                  deals[]
+  handles                handles[]
+  towns                  towns?           @relation(fields: [hometown_id], references: [id])
+  sport_teams            sport_teams?     @relation(fields: [organization_id, sport_slug], references: [organization_id, sport_slug], onDelete: Cascade)
+  positions              positions?       @relation(fields: [sport_slug, position_name], references: [sport_slug, name], onDelete: Cascade)
+  social_reports         social_reports[]
+
+  @@index([position_name])
+  @@index([sport_slug])
+  @@index([sport_slug, position_name])
+}
+
+model positions {
+  name            String
+  abbr            String?
+  sport_slug      String
+  parent_name     String?
+  players         players[]
+  sports          sports      @relation(fields: [sport_slug], references: [slug])
+  positions       positions?  @relation("positionsTopositions", fields: [sport_slug, parent_name], references: [sport_slug, name])
+  other_positions positions[] @relation("positionsTopositions")
+
+  @@id([sport_slug, name])
+}
+
+model rate_benchmarks {
+  id             Int   @id @default(autoincrement())
+  max_followers  Int?
+  cpv_rate       Float @db.Real
+  cpc_rate       Float @db.Real
+  story_cpe_rate Float @db.Real
+}
+
+model social_reports {
+  player_id         Int
+  platform          String
+  created_at        DateTime? @default(now())
+  updated_at        DateTime? @default(now())
+  user              Json?     @default("{}")
+  user_id           String?
+  username          String
+  picture           String?
+  is_verified       Boolean?
+  followers         Int?
+  posts_count       Int?
+  considered_count  Int?
+  engagement_rate   Float?    @db.Real
+  stat_history      Json[]
+  has_reels         Boolean?
+  avg_likes         Int?
+  avg_comments      Int?
+  avg_tweet_views   Int?
+  avg_plays         Int?
+  avg_shares        Int?
+  avg_replies       Int?
+  avg_retweets      Int?
+  avg_impressions   Int?
+  avg_engagements   Float?    @db.Real
+  cpe               Float?    @db.Real
+  post_price        Float?    @db.Real
+  rates             Json?
+  has_audience_data Boolean?
+  interests         Json[]
+  commercial_posts  Json[]
+  audience          Json?     @default("{}")
+  players           players   @relation(fields: [player_id], references: [id], onDelete: Cascade)
+
+  @@id([player_id, platform])
+  @@index([avg_engagements])
+  @@index([cpe])
+  @@index([engagement_rate])
+  @@index([followers])
+  @@index([platform])
+  @@index([post_price])
+  @@index([rates(ops: JsonbPathOps)], type: Gin)
+}
+
+model sport_teams {
+  sport_slug      String
+  tv_views        Int?
+  team_talent     Float?        @db.Real
+  twitter_handle  String?
+  organization_id Int
+  players         players[]
+  organizations   organizations @relation(fields: [organization_id], references: [on3_id], onDelete: Cascade)
+  sports          sports        @relation(fields: [sport_slug], references: [slug])
+
+  @@id([organization_id, sport_slug])
+  @@index([organization_id])
+}
+
+model sports {
+  slug        String        @id
+  name        String        @unique
+  on3_id      Int?          @unique
+  gender      String?
+  abbr        String?
+  positions   positions[]
+  sport_teams sport_teams[]
+}
+
+model states {
+  abbr         String     @id
+  on3_id       Int?       @unique
+  name         String     @unique
+  country_abbr String?
+  countries    countries? @relation(fields: [country_abbr], references: [abbr])
+  towns        towns[]
+}
+
+model towns {
+  id         Int       @id @default(autoincrement())
+  name       String
+  on3_id     Int?      @unique
+  state_abbr String?
+  players    players[]
+  states     states?   @relation(fields: [state_abbr], references: [abbr])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model users {
+  id          String  @id @db.Uuid
+  customer_id String?
+  plan_id     Int?
+  is_admin    Boolean @default(false)
+}
